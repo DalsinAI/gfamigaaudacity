@@ -19,7 +19,6 @@ ST_COMMIT=e83424d5928ab8513d2d082779c275765dee31b9
 # Our own pieces, fetched at these commits
 WXT_REPO=https://github.com/DalsinAI/gfopenwxtoolkit
 WXT_COMMIT=e75e16f8278a2c93a23d4ba0fbf2b098c59c0ec4
-# GFOpenPortAudio (PortAudio's AHI host API): until its own repository
-# exists, give PA_SRC (its tree) to build-amiga.sh
-PA_REPO=https://github.com/DalsinAI/gfopenportaudio
-PA_COMMIT=
+# GFOpenPortAudio (PortAudio's AHI host API)
+PA_REPO=https://github.com/DalsinAI/gfopenportaudio-
+PA_COMMIT=c30eedd83f1e6388545ef29b73984bfda4a60a64

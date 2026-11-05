@@ -15,10 +15,10 @@ Owed: recording (needs an AHI mode that records), MIDI, a smaller binary (about 
 ## Building
 
 ```
-STOVE=~/AmiCradle/stoves/os32-gcc16-open6 PA_SRC=.../gfopenportaudio OUT=out ./build-amiga.sh
+STOVE=~/AmiCradle/stoves/os32-gcc16-open6 OUT=out ./build-amiga.sh
 ```
 
-The first run builds the toolkit SDK, PortAudio and the libraries (libsndfile, LAME, SoundTouch, PortMidi, RapidJSON), then Audacity for what is left of 840 s; run it again and it goes on from where it stopped. `out/audacity` appears when it links.
+The first run fetches the GFOpenWX Toolkit and GFOpenPortAudio at the commits `audacity.lock` pins, builds the toolkit SDK, PortAudio and the libraries (libsndfile, LAME, SoundTouch, PortMidi, RapidJSON), then Audacity for what is left of 840 s; run it again and it goes on from where it stopped. `out/audacity` appears when it links.
 
 | Where | What |
 |---|---|
