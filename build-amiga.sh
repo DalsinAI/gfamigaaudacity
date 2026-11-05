@@ -12,7 +12,10 @@ set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 . "$HERE/audacity.lock"
 STOVE=${STOVE:-"$HOME/AmiCradle/stoves/os32-gcc16-open6"}
-OUT="${OUT:-$HERE/build/out}"; WORK="${WORK:-$HERE/build}"; JOBS=${JOBS:-12}
+# the build tree lives outside the checkout, so a checkout that is cleaned
+# between runs (Cradle's stove jobs run git clean -ffdx) still goes on
+WORK="${WORK:-${XDG_CACHE_HOME:-$HOME/.cache}/gfamigaaudacity/build}"
+OUT="${OUT:-$HERE/build/out}"; JOBS=${JOBS:-12}
 TC="$STOVE/prefix"
 command -v cmake >/dev/null || { echo "no cmake on this stove"; exit 1; }
 mkdir -p "$WORK/deps" "$OUT"
