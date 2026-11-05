@@ -1,0 +1,95 @@
+diff -ru a/libraries/lib-project-file-io/SqliteSampleBlock.cpp b/libraries/lib-project-file-io/SqliteSampleBlock.cpp
+--- a/libraries/lib-project-file-io/SqliteSampleBlock.cpp	2026-11-05 00:33:00.750890491 +0000
++++ b/libraries/lib-project-file-io/SqliteSampleBlock.cpp	2026-11-05 00:36:50.132680164 +0000
+@@ -28,6 +28,31 @@
+ #include <wx/log.h>
+ 
+ #include <mutex>
++#include <vector>
++
++// Sample and summary blobs are little endian in every .aup3. A big-endian
++// host (AmigaOS on 68k) swaps each element on the way in and out, so its
++// projects open everywhere and theirs open on it.
++#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
++#define SAMPLEBLOCK_SWAP_BYTES 1
++static void SwapElements(char *data, size_t bytes, size_t size)
++{
++   if (size < 2)
++      return;
++   for (size_t i = 0; i + size <= bytes; i += size)
++      for (size_t a = i, b = i + size - 1; a < b; ++a, --b) {
++         char t = data[a];
++         data[a] = data[b];
++         data[b] = t;
++      }
++}
++static std::vector<char> SwappedCopy(const char *data, size_t bytes, size_t size)
++{
++   std::vector<char> copy(data, data + bytes);
++   SwapElements(copy.data(), bytes, size);
++   return copy;
++}
++#endif
+ 
+ class SqliteSampleBlockFactory;
+ 
+@@ -131,7 +156,7 @@
+    double mSumMax;
+    double mSumRms;
+ 
+-#if defined(WORDS_BIGENDIAN)
++#if defined(WORDS_BIGENDIAN) && !defined(SAMPLEBLOCK_SWAP_BYTES)
+ #error All sample block data is little endian...big endian not yet supported
+ #endif
+ };
+@@ -679,11 +704,20 @@
+     */
+    wxASSERT(destformat == floatSample || destformat == srcformat);
+ 
++#if defined(SAMPLEBLOCK_SWAP_BYTES)
++   const auto swapped = SwappedCopy(src + srcoffset, minbytes, SAMPLE_SIZE(srcformat));
++   CopySamples(reinterpret_cast<constSamplePtr>(swapped.data()),
++               srcformat,
++               (samplePtr) dest,
++               destformat,
++               minbytes / SAMPLE_SIZE(srcformat));
++#else
+    CopySamples(src + srcoffset,
+                srcformat,
+                (samplePtr) dest,
+                destformat,
+                minbytes / SAMPLE_SIZE(srcformat));
++#endif
+ 
+    dest = ((samplePtr) dest) + minbytes;
+ 
+@@ -786,13 +820,26 @@
+    // Bind statement parameters
+    // Might return SQLITE_MISUSE which means it's our mistake that we violated
+    // preconditions; should return SQL_OK which is 0
++#if defined(SAMPLEBLOCK_SWAP_BYTES)
++   // little-endian copies, alive until the statement is reset below
++   const auto summary256LE = SwappedCopy(mSummary256.get(), mSummary256Bytes, sizeof(float));
++   const auto summary64kLE = SwappedCopy(mSummary64k.get(), mSummary64kBytes, sizeof(float));
++   const auto samplesLE = SwappedCopy(mSamples.get(), mSampleBytes, SAMPLE_SIZE(mSampleFormat));
++   const char *summary256Data = summary256LE.data();
++   const char *summary64kData = summary64kLE.data();
++   const char *samplesData = samplesLE.data();
++#else
++   const char *summary256Data = mSummary256.get();
++   const char *summary64kData = mSummary64k.get();
++   const char *samplesData = mSamples.get();
++#endif
+    if (sqlite3_bind_int(stmt, 1, static_cast<int>(mSampleFormat)) ||
+        sqlite3_bind_double(stmt, 2, mSumMin) ||
+        sqlite3_bind_double(stmt, 3, mSumMax) ||
+        sqlite3_bind_double(stmt, 4, mSumRms) ||
+-       sqlite3_bind_blob(stmt, 5, mSummary256.get(), mSummary256Bytes, SQLITE_STATIC) ||
+-       sqlite3_bind_blob(stmt, 6, mSummary64k.get(), mSummary64kBytes, SQLITE_STATIC) ||
+-       sqlite3_bind_blob(stmt, 7, mSamples.get(), mSampleBytes, SQLITE_STATIC))
++       sqlite3_bind_blob(stmt, 5, summary256Data, mSummary256Bytes, SQLITE_STATIC) ||
++       sqlite3_bind_blob(stmt, 6, summary64kData, mSummary64kBytes, SQLITE_STATIC) ||
++       sqlite3_bind_blob(stmt, 7, samplesData, mSampleBytes, SQLITE_STATIC))
+    {
+ 
+       ADD_EXCEPTION_CONTEXT(

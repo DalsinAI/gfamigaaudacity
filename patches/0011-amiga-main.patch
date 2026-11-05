@@ -1,0 +1,41 @@
+AmigaOS: a plain main() and no wxSingleInstanceChecker member (patch 0002's
+public port does that job).
+
+diff -ruN a/src/AudacityApp.cpp b/src/AudacityApp.cpp
+--- a/src/AudacityApp.cpp	2026-11-05 01:17:57.992128539 +0000
++++ b/src/AudacityApp.cpp	2026-11-05 01:17:58.003778387 +0000
+@@ -926,6 +926,21 @@
+    return wxEntry(argc, argv);
+ }
+ 
++#elif defined(__AMIGA__)
++
++// AmigaOS: a plain main(), as on Linux
++
++int main(int argc, char *argv[])
++{
++   CommandLineArgs::argc = argc;
++   CommandLineArgs::argv = argv;
++
++   wxDISABLE_DEBUG_SUPPORT();
++
++   return wxEntry(argc, argv);
++}
++wxIMPLEMENT_APP_NO_MAIN(AudacityApp);
++
+ #elif defined(__WXGTK__)
+ 
+ // Linux release build
+diff -ruN a/src/AudacityApp.h b/src/AudacityApp.h
+--- a/src/AudacityApp.h	2026-11-05 01:17:57.992105471 +0000
++++ b/src/AudacityApp.h	2026-11-05 01:17:58.003462026 +0000
+@@ -117,7 +117,9 @@
+ 
+    std::unique_ptr<CommandHandler> mCmdHandler;
+ 
++#ifndef __AMIGA__
+    std::unique_ptr<wxSingleInstanceChecker> mChecker;
++#endif
+ 
+    wxTimer mTimer;
+    wxTimer mSplashTimer;

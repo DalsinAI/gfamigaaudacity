@@ -1,0 +1,16 @@
+SoundTouch 2.x: Audacity's local build of it also needs the three
+interpolators RateTransposer uses (its source list predates them).
+
+diff -ruN a/cmake-proxies/soundtouch/CMakeLists.txt b/cmake-proxies/soundtouch/CMakeLists.txt
+--- a/cmake-proxies/soundtouch/CMakeLists.txt	2026-11-05 02:13:30.697484411 +0000
++++ b/cmake-proxies/soundtouch/CMakeLists.txt	2026-11-05 02:13:30.733762985 +0000
+@@ -8,6 +8,9 @@
+       ${TARGET_ROOT}/source/SoundTouch/AAFilter.cpp
+       ${TARGET_ROOT}/source/SoundTouch/FIFOSampleBuffer.cpp
+       ${TARGET_ROOT}/source/SoundTouch/FIRFilter.cpp
++      ${TARGET_ROOT}/source/SoundTouch/InterpolateCubic.cpp
++      ${TARGET_ROOT}/source/SoundTouch/InterpolateLinear.cpp
++      ${TARGET_ROOT}/source/SoundTouch/InterpolateShannon.cpp
+       ${TARGET_ROOT}/source/SoundTouch/mmx_optimized.cpp
+       ${TARGET_ROOT}/source/SoundTouch/RateTransposer.cpp
+       ${TARGET_ROOT}/source/SoundTouch/SoundTouch.cpp

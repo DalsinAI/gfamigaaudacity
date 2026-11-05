@@ -1,0 +1,197 @@
+diff -ru a/src/AudacityApp.cpp b/src/AudacityApp.cpp
+--- a/src/AudacityApp.cpp	2026-11-04 23:46:00.969715365 +0000
++++ b/src/AudacityApp.cpp	2026-11-04 23:46:00.984630288 +0000
+@@ -810,6 +810,10 @@
+ // the timer routine gets around to picking them up.
+ static wxArrayString ofqueue;
+ 
++#if defined(__AMIGA__)
++void AmigaIPCPoll(struct MsgPort *port);
++#endif
++
+ //
+ // DDE support for opening multiple files with one instance
+ // of Audacity.
+@@ -818,6 +822,7 @@
+ #define IPC_APPL wxT("audacity")
+ #define IPC_TOPIC wxT("System")
+ 
++#if !defined(__AMIGA__)
+ class IPCConn final : public wxConnection
+ {
+ public:
+@@ -865,6 +870,8 @@
+    };
+ };
+ 
++#endif // !__AMIGA__
++
+ #if defined(__WXMAC__)
+ 
+ IMPLEMENT_APP_NO_MAIN(AudacityApp)
+@@ -1019,7 +1026,7 @@
+    // event
+    EVT_MENU(wxID_EXIT, AudacityApp::OnMenuExit)
+ 
+-#ifndef __WXMSW__
++#if !defined(__WXMSW__) && !defined(__AMIGA__)
+    EVT_SOCKET(ID_IPC_SERVER, AudacityApp::OnServerEvent)
+    EVT_SOCKET(ID_IPC_SOCKET, AudacityApp::OnSocketEvent)
+ #endif
+@@ -1109,6 +1116,9 @@
+ 
+ void AudacityApp::OnTimer(wxTimerEvent& WXUNUSED(event))
+ {
++#if defined(__AMIGA__)
++   AmigaIPCPoll(mIPCPort);
++#endif
+    // Filenames are queued when Audacity receives a few of the
+    // AppleEvent messages (via wxWidgets).  So, open any that are
+    // in the queue and clean the queue.
+@@ -2111,7 +2121,7 @@
+ }
+ #endif
+ 
+-#if defined(__UNIX__)
++#if defined(__UNIX__) && !defined(__AMIGA__)
+ 
+ #include <sys/ipc.h>
+ #include <sys/sem.h>
+@@ -2436,6 +2446,115 @@
+ 
+ #endif
+ 
++#if defined(__AMIGA__)
++// AmigaOS: one Audacity, found by its public message port. A second start
++// sends the files named on its command line to that port (an empty name
++// brings the running Audacity to the front) and quits.
++#include <proto/exec.h>
++#include <exec/ports.h>
++
++static const char AmigaIPCPortName[] = "Audacity.ipc";
++
++namespace {
++struct AmigaIPCMessage
++{
++   struct Message msg;
++   wchar_t name[1024];
++};
++}
++
++void AmigaIPCPoll(struct MsgPort *port)
++{
++   if (!port)
++      return;
++   struct Message *m;
++   while ((m = GetMsg(port)) != nullptr) {
++      auto im = reinterpret_cast<AmigaIPCMessage *>(m);
++      im->name[1023] = 0;
++      ofqueue.push_back(wxString(im->name));
++      ReplyMsg(m);
++   }
++}
++
++bool AudacityApp::CreateSingleInstanceChecker(const wxString & /* dir */)
++{
++   Forbid();
++   struct MsgPort *other = FindPort(AmigaIPCPortName);
++   if (!other) {
++      mIPCPort = CreateMsgPort();
++      if (mIPCPort) {
++         mIPCPort->mp_Node.ln_Name = const_cast<char *>(AmigaIPCPortName);
++         mIPCPort->mp_Node.ln_Pri = 0;
++         AddPort(mIPCPort);
++      }
++      Permit();
++      // the first Audacity, port or not
++      return true;
++   }
++   Permit();
++
++   // Parse the command line to ensure correct syntax, but ignore
++   // options other than -v, and only use the filenames, if any.
++   auto parser = ParseCommandLine();
++   if (!parser)
++      return false;
++   if (parser->Found(wxT("v"))) {
++      wxPrintf("Audacity v%s\n", AUDACITY_VERSION_STRING);
++      return false;
++   }
++
++   struct MsgPort *reply = CreateMsgPort();
++   if (!reply)
++      return false;
++   auto send = [reply](const wxString &name) {
++      AmigaIPCMessage m{};
++      m.msg.mn_Node.ln_Type = NT_MESSAGE;
++      m.msg.mn_Length = sizeof(m);
++      m.msg.mn_ReplyPort = reply;
++      size_t i = 0;
++      for (auto c : name) {
++         if (i == 1023)
++            break;
++         m.name[i++] = static_cast<wchar_t>(static_cast<wxUniChar>(c).GetValue());
++      }
++      m.name[i] = 0;
++      Forbid();
++      struct MsgPort *port = FindPort(AmigaIPCPortName);
++      if (port)
++         PutMsg(port, &m.msg);
++      Permit();
++      if (port) {
++         WaitPort(reply);
++         GetMsg(reply);
++      }
++   };
++   for (size_t j = 0, cnt = parser->GetParamCount(); j < cnt; ++j) {
++      wxFileName filename(parser->GetParam(j));
++      if (filename.MakeAbsolute())
++         send(filename.GetLongPath());
++   }
++   send(wxEmptyString);
++   DeleteMsgPort(reply);
++
++   // the running Audacity has the files: this one stops
++   return false;
++}
++
++static void AmigaIPCClose(struct MsgPort *&port)
++{
++   if (!port)
++      return;
++   Forbid();
++   RemPort(port);
++   struct Message *m;
++   while ((m = GetMsg(port)) != nullptr)
++      ReplyMsg(m);
++   Permit();
++   DeleteMsgPort(port);
++   port = nullptr;
++}
++#endif
++
+ std::unique_ptr<wxCmdLineParser> AudacityApp::ParseCommandLine()
+ {
+    auto parser = std::make_unique<wxCmdLineParser>(argc, argv);
+@@ -2521,6 +2640,9 @@
+ int AudacityApp::OnExit()
+ {
+    gIsQuitting = true;
++#if defined(__AMIGA__)
++   AmigaIPCClose(mIPCPort);
++#endif
+    while(Pending())
+    {
+       Dispatch();
+diff -ru a/src/AudacityApp.h b/src/AudacityApp.h
+--- a/src/AudacityApp.h	2026-11-04 23:46:00.969882136 +0000
++++ b/src/AudacityApp.h	2026-11-04 23:46:00.984853137 +0000
+@@ -134,6 +134,8 @@
+ 
+ #if defined(__WXMSW__)
+    std::unique_ptr<IPCServ> mIPCServ;
++#elif defined(__AMIGA__)
++   struct MsgPort *mIPCPort = nullptr;
+ #else
+    std::unique_ptr<wxSocketServer> mIPCServ;
+ #endif

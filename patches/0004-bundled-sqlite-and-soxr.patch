@@ -1,0 +1,59 @@
+diff -ru a/cmake-proxies/libsoxr/CMakeLists.txt b/cmake-proxies/libsoxr/CMakeLists.txt
+--- a/cmake-proxies/libsoxr/CMakeLists.txt	2026-11-05 00:27:20.629598479 +0000
++++ b/cmake-proxies/libsoxr/CMakeLists.txt	2026-11-05 00:28:51.390692223 +0000
+@@ -22,6 +22,14 @@
+       ${TARGET_ROOT}/src/util32s.c
+       ${TARGET_ROOT}/src/vr32.c
+ )
++if( AMIGA )
++   # 68k: no SIMD, so none of soxr's SIMD resamplers
++   list( REMOVE_ITEM SOURCES
++      ${TARGET_ROOT}/src/cr32s.c
++      ${TARGET_ROOT}/src/pffft32s.c
++      ${TARGET_ROOT}/src/util32s.c
++   )
++endif()
+ 
+ set( INCLUDES
+    PRIVATE
+@@ -66,8 +74,10 @@
+ set( WITH_CR64S NO )
+ set( WITH_VR32 YES )
+ 
+-find_package( SIMD32 )
+-if( SIMD32_FOUND )
++if( NOT AMIGA )
++   find_package( SIMD32 )
++endif()
++if( SIMD32_FOUND AND NOT AMIGA )
+    set( WITH_CR32S YES )
+    string( STRIP "${SIMD32_C_FLAGS}" SIMD32_C_FLAGS )
+    string( REPLACE " " ";" SIMD32_C_FLAGS "${SIMD32_C_FLAGS}" )
+diff -ru a/cmake-proxies/sqlite/CMakeLists.txt b/cmake-proxies/sqlite/CMakeLists.txt
+--- a/cmake-proxies/sqlite/CMakeLists.txt	2026-11-05 00:27:20.621773234 +0000
++++ b/cmake-proxies/sqlite/CMakeLists.txt	2026-11-05 00:27:20.710676190 +0000
+@@ -33,6 +33,9 @@
+       SQLITE_OMIT_SHARED_CACHE
+       SQLITE_USE_ALLOCA
+       SQLITE_OMIT_AUTOINIT
++      # AmigaOS: no mmap, so no shared-memory WAL index; rollback journal
++      $<$<BOOL:${AMIGA}>:SQLITE_OMIT_WAL>
++      $<$<BOOL:${AMIGA}>:SQLITE_MAX_MMAP_SIZE=0>
+       $<$<BOOL:${HAVE_FDATASYNC}>:HAVE_FDATASYNC>
+       $<$<BOOL:${HAVE_GMTIME_R}>:HAVE_GMTIME_R>
+       $<$<BOOL:${HAVE_ISNAN}>:HAVE_ISNAN>
+diff -ru a/lib-src/sqlite/sqlite3.c b/lib-src/sqlite/sqlite3.c
+--- a/lib-src/sqlite/sqlite3.c	2026-11-05 00:27:20.608367871 +0000
++++ b/lib-src/sqlite/sqlite3.c	2026-11-05 00:27:20.676367873 +0000
+@@ -33753,7 +33753,11 @@
+ #include <sys/types.h>
+ #include <sys/stat.h>
+ #include <fcntl.h>
++#if !defined(__AMIGA__)
++/* AmigaOS: libnix's sys/ioctl.h brings in exec/types.h, whose GLOBAL
++** clashes with SQLite's; nothing here needs it there */
+ #include <sys/ioctl.h>
++#endif
+ #include <unistd.h>
+ /* #include <time.h> */
+ #include <sys/time.h>

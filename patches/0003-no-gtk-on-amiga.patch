@@ -1,0 +1,12 @@
+diff -ru a/cmake-proxies/cmake-modules/dependencies/wxwidgets.cmake b/cmake-proxies/cmake-modules/dependencies/wxwidgets.cmake
+--- a/cmake-proxies/cmake-modules/dependencies/wxwidgets.cmake	2026-11-05 00:23:02.347021145 +0000
++++ b/cmake-proxies/cmake-modules/dependencies/wxwidgets.cmake	2026-11-05 00:23:02.351123247 +0000
+@@ -138,7 +138,7 @@
+     set( toolkit "libwx_gtk2u_core-3.1.so" )
+ endif()
+ 
+-if( NOT CMAKE_SYSTEM_NAME MATCHES "Windows|Darwin" )
++if( NOT CMAKE_SYSTEM_NAME MATCHES "Windows|Darwin" AND NOT AMIGA )
+     message(STATUS "Trying to retrieve GTK version from ${toolkit}")
+ 
+     if( "${toolkit}" MATCHES ".*gtk2.*" )

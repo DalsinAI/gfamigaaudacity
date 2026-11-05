@@ -1,0 +1,105 @@
+diff -ruN a/libraries/lib-ipc/internal/ipc-types.h b/libraries/lib-ipc/internal/ipc-types.h
+--- a/libraries/lib-ipc/internal/ipc-types.h	2026-11-05 00:31:58.463414188 +0000
++++ b/libraries/lib-ipc/internal/ipc-types.h	2026-11-05 00:31:58.476696164 +0000
+@@ -21,6 +21,10 @@
+ #include <sys/select.h>
+ #include <sys/socket.h>
+ #include <netinet/in.h>
++#ifndef INADDR_LOOPBACK
++// AmigaOS: libnix's netinet/in.h has no INADDR_LOOPBACK
++#define INADDR_LOOPBACK 0x7f000001
++#endif
+ #include <unistd.h>
+ #include <poll.h>
+ #include <fcntl.h>
+diff -ruN a/libraries/lib-string-utils/3party/fast_float.h b/libraries/lib-string-utils/3party/fast_float.h
+--- a/libraries/lib-string-utils/3party/fast_float.h	2026-11-05 00:31:44.538041690 +0000
++++ b/libraries/lib-string-utils/3party/fast_float.h	2026-11-05 00:31:58.477418183 +0000
+@@ -148,6 +148,8 @@
+ #include <machine/endian.h>
+ #elif defined(sun) || defined(__sun)
+ #include <sys/byteorder.h>
++#elif defined(__AMIGA__)
++// AmigaOS: no endian.h; GCC's __BYTE_ORDER__ tells
+ #else
+ #include <endian.h>
+ #endif
+diff -ruN a/libraries/lib-strings/Internat.cpp b/libraries/lib-strings/Internat.cpp
+--- a/libraries/lib-strings/Internat.cpp	2026-11-05 00:31:44.544670034 +0000
++++ b/libraries/lib-strings/Internat.cpp	2026-11-05 00:32:04.474570690 +0000
+@@ -67,6 +67,8 @@
+    wxPathFormat format = wxPATH_UNIX;
+ #elif defined(__WXMSW__)
+    wxPathFormat format = wxPATH_WIN;
++#else
++   wxPathFormat format = wxPATH_UNIX;
+ #endif
+ 
+    // This is supposed to return characters not permitted in paths to files
+@@ -82,6 +84,11 @@
+       exclude.push_back(wxString{ cc });
+    }
+ 
++#if defined(__AMIGA__)
++   // AmigaOS: a colon ends a volume or assign name
++   exclude.push_back(wxT(":"));
++#endif
++
+    // The path separators may not be forbidden, so add them
+    //auto separators = wxFileName::GetPathSeparators(format);
+ 
+diff -ruN a/modules/etc/CMakeLists.txt b/modules/etc/CMakeLists.txt
+--- a/modules/etc/CMakeLists.txt	2026-11-05 00:31:44.511947450 +0000
++++ b/modules/etc/CMakeLists.txt	2026-11-05 00:31:58.476807598 +0000
+@@ -8,7 +8,7 @@
+ # that it depends on
+ set( MODULES
+ )
+-if( NOT CMAKE_SYSTEM_NAME MATCHES "Windows" )
++if( NOT CMAKE_SYSTEM_NAME MATCHES "Windows" AND NOT AMIGA )
+    list( APPEND MODULES
+       mod-null
+    )
+diff -ruN a/modules/import-export/CMakeLists.txt b/modules/import-export/CMakeLists.txt
+--- a/modules/import-export/CMakeLists.txt	2026-11-05 00:31:44.531291758 +0000
++++ b/modules/import-export/CMakeLists.txt	2026-11-05 00:31:58.476933355 +0000
+@@ -14,6 +14,11 @@
+    mod-aup
+ )
+ 
++if ( AMIGA )
++   # the command-line exporter pipes to other programs: not on AmigaOS yet
++   list( REMOVE_ITEM MODULES mod-cl )
++endif()
++
+ if ( USE_LIBOGG AND USE_LIBVORBIS )
+    list( APPEND MODULES mod-ogg )
+ endif()
+diff -ruN a/modules/nyquist/CMakeLists.txt b/modules/nyquist/CMakeLists.txt
+--- a/modules/nyquist/CMakeLists.txt	2026-11-05 00:31:44.518172387 +0000
++++ b/modules/nyquist/CMakeLists.txt	2026-11-05 00:31:58.476862389 +0000
+@@ -9,7 +9,7 @@
+ set( MODULES
+ )
+ 
+-if( NOT CMAKE_SYSTEM_NAME MATCHES "Windows" )
++if( NOT CMAKE_SYSTEM_NAME MATCHES "Windows" AND NOT AMIGA )
+    list( APPEND MODULES
+       mod-nyq-bench
+    )
+diff -ruN a/modules/scripting/CMakeLists.txt b/modules/scripting/CMakeLists.txt
+--- a/modules/scripting/CMakeLists.txt	2026-11-05 00:31:44.524432721 +0000
++++ b/modules/scripting/CMakeLists.txt	2026-11-05 00:31:58.476905679 +0000
+@@ -7,7 +7,11 @@
+ # The list of modules is ordered so that each module occurs after any others
+ # that it depends on
+ set( MODULES
+-   mod-script-pipe
+ )
++# AmigaOS: every module is linked into the program and so always on; the
++# scripting pipe stays out until it has an Amiga pipe of its own
++if( NOT AMIGA )
++   list( APPEND MODULES mod-script-pipe )
++endif()
+ 
+ audacity_module_subdirectory("${MODULES}")

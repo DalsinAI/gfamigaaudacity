@@ -1,0 +1,53 @@
+Amiga: no lock-free pointer atomic assert, 8-byte NonInterferingBase (hunk
+alignment limit); fix generic-port button margin typo; no frame icon for the
+log window (Intuition windows have none).
+
+diff -ruN a/libraries/lib-shuttlegui/ShuttleGui.cpp b/libraries/lib-shuttlegui/ShuttleGui.cpp
+--- a/libraries/lib-shuttlegui/ShuttleGui.cpp	2026-11-05 00:55:30.174976300 +0000
++++ b/libraries/lib-shuttlegui/ShuttleGui.cpp	2026-11-05 00:55:30.192774537 +0000
+@@ -2395,7 +2395,7 @@
+       margin = b.ConvertDialogToPixels(wxSize(2, 0)).x;
+ #else
+       wxButton b(parent, 0, wxEmptyString);
+-      margin = b->ConvertDialogToPixels(wxSize(4, 0)).x;
++      margin = b.ConvertDialogToPixels(wxSize(4, 0)).x;
+ #endif
+    }
+ 
+diff -ruN a/libraries/lib-utility/MemoryX.h b/libraries/lib-utility/MemoryX.h
+--- a/libraries/lib-utility/MemoryX.h	2026-11-05 00:55:30.173433649 +0000
++++ b/libraries/lib-utility/MemoryX.h	2026-11-05 01:09:21.687939465 +0000
+@@ -266,6 +266,9 @@
+ #if defined(_WIN32) && defined(_MSC_VER)
+    // MSVC supports this symbol in std, but MinGW uses libstdc++, which it does not.
+    std::hardware_destructive_interference_size
++#elif defined(__AMIGA__)
++   // Amiga hunk files align objects to 8 bytes at most (static ScrubQueue)
++   8
+ #else
+    // That constant isn't defined for the other builds yet
+    64 /* ? */
+@@ -344,7 +347,11 @@
+ //! It doesn't copy or move
+ template<typename T>
+ struct AtomicUniquePointer : public std::atomic<T*> {
++#ifndef __AMIGA__
++   // m68k-amigaos has no lock-free pointer atomics at compile time; on a
++   // single 68040 the libatomic fallback is still correct.
+    static_assert(AtomicUniquePointer::is_always_lock_free);
++#endif
+    using std::atomic<T*>::atomic;
+    //! Reassign the pointer with release ordering,
+    //! then destroy any previously held object
+diff -ruN a/libraries/lib-wx-init/LogWindow.cpp b/libraries/lib-wx-init/LogWindow.cpp
+--- a/libraries/lib-wx-init/LogWindow.cpp	2026-11-05 01:00:49.919324783 +0000
++++ b/libraries/lib-wx-init/LogWindow.cpp	2026-11-05 01:00:49.931435147 +0000
+@@ -90,7 +90,7 @@
+ 
+    // loads either the XPM or the windows resource, depending on the platform
+    {
+-#if !defined(__WXMAC__) && !defined(__WXX11__)
++#if !defined(__WXMAC__) && !defined(__WXX11__) && !defined(__WXOPENLAYOUT__)
+ #if defined(__WXMSW__)
+       wxIcon ic{wxICON(AudacityLogo)};
+ #elif defined(__WXGTK__)

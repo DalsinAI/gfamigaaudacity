@@ -1,0 +1,86 @@
+AmigaOS: SQLite with no fcntl() locks and Amiga path names (VOLUME:dir/file),
+and its temporary tables in memory.
+
+diff -ruN a/cmake-proxies/sqlite/CMakeLists.txt b/cmake-proxies/sqlite/CMakeLists.txt
+--- a/cmake-proxies/sqlite/CMakeLists.txt	2026-11-05 04:23:01.161929358 +0000
++++ b/cmake-proxies/sqlite/CMakeLists.txt	2026-11-05 04:23:01.205027407 +0000
+@@ -36,6 +36,8 @@
+       # AmigaOS: no mmap, so no shared-memory WAL index; rollback journal
+       $<$<BOOL:${AMIGA}>:SQLITE_OMIT_WAL>
+       $<$<BOOL:${AMIGA}>:SQLITE_MAX_MMAP_SIZE=0>
++      # and temporary tables in memory: no /tmp
++      $<$<BOOL:${AMIGA}>:SQLITE_TEMP_STORE=3>
+       $<$<BOOL:${HAVE_FDATASYNC}>:HAVE_FDATASYNC>
+       $<$<BOOL:${HAVE_GMTIME_R}>:HAVE_GMTIME_R>
+       $<$<BOOL:${HAVE_ISNAN}>:HAVE_ISNAN>
+diff -ruN a/libraries/lib-sqlite-helpers/sqlite/SQLiteUtils.cpp b/libraries/lib-sqlite-helpers/sqlite/SQLiteUtils.cpp
+--- a/libraries/lib-sqlite-helpers/sqlite/SQLiteUtils.cpp	2026-11-05 04:23:01.159218121 +0000
++++ b/libraries/lib-sqlite-helpers/sqlite/SQLiteUtils.cpp	2026-11-05 04:23:01.205125016 +0000
+@@ -9,10 +9,55 @@
+ 
+ #include "sqlite3.h"
+ 
++#ifdef __AMIGA__
++#include <string.h>
++#include <unistd.h>
++#endif
++
+ namespace audacity::sqlite
+ {
+ namespace
+ {
++#ifdef __AMIGA__
++// AmigaOS has no fcntl() locks and its paths are not Unix paths: "VOLUME:dir/file"
++// is absolute, anything else is relative to the current directory. The VFS
++// is SQLite's "unix-none" (no locking: one Audacity uses a project at a time)
++// with its own full path names.
++sqlite3_vfs AmigaVfs;
++
++int AmigaFullPathname(sqlite3_vfs*, const char* zName, int nOut, char* zOut)
++{
++   if (nOut < 2)
++      return SQLITE_CANTOPEN;
++   size_t len = 0;
++   if (!strchr(zName, ':'))
++   {
++      if (!getcwd(zOut, nOut - 1))
++         return SQLITE_CANTOPEN;
++      len = strlen(zOut);
++      if (len > 0 && zOut[len - 1] != ':' && zOut[len - 1] != '/' && *zName)
++         zOut[len++] = '/';
++   }
++   const size_t n = strlen(zName);
++   if (len + n + 1 > (size_t)nOut)
++      return SQLITE_CANTOPEN;
++   memcpy(zOut + len, zName, n + 1);
++   return SQLITE_OK;
++}
++
++void UseAmigaVfs()
++{
++   sqlite3_vfs* base = sqlite3_vfs_find("unix-none");
++   if (!base)
++      return;
++   AmigaVfs = *base;
++   AmigaVfs.zName = "amiga";
++   AmigaVfs.pNext = nullptr;
++   AmigaVfs.xFullPathname = AmigaFullPathname;
++   sqlite3_vfs_register(&AmigaVfs, 1);
++}
++#endif
++
+ // This singleton handles initialization/shutdown of the SQLite library.
+ // It is needed because our local SQLite is built with SQLITE_OMIT_AUTOINIT
+ // defined.
+@@ -38,6 +83,11 @@
+ 
+       mError = Error(sqlite3_initialize());
+ 
++#ifdef __AMIGA__
++      if (!mError.IsError())
++         UseAmigaVfs();
++#endif
++
+ #ifdef NO_SHM
+       if (mError.IsError())
+          return;

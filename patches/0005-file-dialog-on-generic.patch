@@ -1,0 +1,240 @@
+diff -ruN a/libraries/lib-wx-wrappers/CMakeLists.txt b/libraries/lib-wx-wrappers/CMakeLists.txt
+--- a/libraries/lib-wx-wrappers/CMakeLists.txt	2026-11-05 00:30:54.097503034 +0000
++++ b/libraries/lib-wx-wrappers/CMakeLists.txt	2026-11-05 00:30:54.117702102 +0000
+@@ -29,6 +29,10 @@
+       FileDialog/gtk/FileDialogPrivate.cpp
+       FileDialog/gtk/FileDialogPrivate.h
+    >
++   $<$<PLATFORM_ID:AmigaOS>:
++      FileDialog/amiga/FileDialogPrivate.cpp
++      FileDialog/amiga/FileDialogPrivate.h
++   >
+    WindowAccessible.cpp
+    WindowAccessible.h
+    wxPanelWrapper.cpp
+diff -ruN a/libraries/lib-wx-wrappers/FileDialog/FileDialog.h b/libraries/lib-wx-wrappers/FileDialog/FileDialog.h
+--- a/libraries/lib-wx-wrappers/FileDialog/FileDialog.h	2026-11-05 00:30:54.104523277 +0000
++++ b/libraries/lib-wx-wrappers/FileDialog/FileDialog.h	2026-11-05 00:30:54.117810286 +0000
+@@ -47,6 +47,8 @@
+ #include "mac/FileDialogPrivate.h"
+ #elif defined(__WXMSW__)
+ #include "win/FileDialogPrivate.h"
++#elif defined(__WXOPENLAYOUT__)
++#include "amiga/FileDialogPrivate.h"
+ #else
+ #error Unknown implementation
+ #endif
+diff -ruN a/libraries/lib-wx-wrappers/FileDialog/amiga/FileDialogPrivate.cpp b/libraries/lib-wx-wrappers/FileDialog/amiga/FileDialogPrivate.cpp
+--- a/libraries/lib-wx-wrappers/FileDialog/amiga/FileDialogPrivate.cpp	1970-01-01 00:00:00.000000000 +0000
++++ b/libraries/lib-wx-wrappers/FileDialog/amiga/FileDialogPrivate.cpp	2026-11-05 00:30:54.122375703 +0000
+@@ -0,0 +1,135 @@
++/**********************************************************************
++
++  Audacity: A Digital Audio Editor
++
++  FileDialogPrivate.cpp (AmigaOS, gfopenwx's openlayout port)
++
++  Copyright (c) 2026 AmiCradle Team
++
++**********************************************************************/
++
++#include "../FileDialog.h"
++
++#include <wx/filename.h>
++#include <wx/generic/filedlgg.h>
++
++// the dialog being shown, for the extra-control creator (which has no
++// user data of its own); file dialogs are modal, one at a time
++static FileDialog *sShowing = nullptr;
++
++FileDialog::FileDialog(wxWindow *parent,
++                       const wxString& message,
++                       const wxString& defaultDir,
++                       const wxString& defaultFile,
++                       const wxString& wildCard,
++                       long style,
++                       const wxPoint& pos,
++                       const wxSize& sz,
++                       const wxString& name)
++{
++   Create(parent, message, defaultDir, defaultFile, wildCard, style, pos, sz, name);
++}
++
++bool FileDialog::Create(wxWindow *parent,
++                        const wxString& message,
++                        const wxString& defaultDir,
++                        const wxString& defaultFile,
++                        const wxString& wildCard,
++                        long style,
++                        const wxPoint& pos,
++                        const wxSize& WXUNUSED(sz),
++                        const wxString& WXUNUSED(name))
++{
++   mParent = parent;
++   mPos = pos;
++   m_message = message;
++   m_dir = defaultDir;
++   m_fileName = defaultFile;
++   m_wildCard = wildCard.empty() ? wxString(wxFileSelectorDefaultWildcardStr) : wildCard;
++   m_windowStyle = style;
++   m_filterIndex = 0;
++   if (!m_dir.empty() || !m_fileName.empty())
++      m_path = wxFileName(m_dir, m_fileName).GetFullPath();
++   return true;
++}
++
++FileDialog::~FileDialog()
++{
++}
++
++wxString FileDialog::GetPath() const { return m_path; }
++
++void FileDialog::GetPaths(wxArrayString& paths) const
++{
++   paths = mPaths;
++   if (paths.empty() && !m_path.empty())
++      paths.Add(m_path);
++}
++
++wxString FileDialog::GetFilename() const { return m_fileName; }
++
++void FileDialog::GetFilenames(wxArrayString& files) const
++{
++   files = mNames;
++   if (files.empty() && !m_fileName.empty())
++      files.Add(m_fileName);
++}
++
++int FileDialog::GetFilterIndex() const { return m_filterIndex; }
++
++void FileDialog::SetMessage(const wxString& message) { m_message = message; }
++
++void FileDialog::SetPath(const wxString& path)
++{
++   m_path = path;
++   wxFileName fn(path);
++   m_dir = fn.GetPath();
++   m_fileName = fn.GetFullName();
++}
++
++void FileDialog::SetDirectory(const wxString& dir) { m_dir = dir; }
++
++void FileDialog::SetFilename(const wxString& name) { m_fileName = name; }
++
++void FileDialog::SetWildcard(const wxString& wildCard) { m_wildCard = wildCard; }
++
++void FileDialog::SetFilterIndex(int filterIndex) { m_filterIndex = filterIndex; }
++
++wxWindow *FileDialog::MakeUserPane(wxWindow *parent)
++{
++   if (!sShowing)
++      return nullptr;
++   // CreateUserPane adds its controls to a panel of ours
++   auto panel = new wxPanel(parent);
++   sShowing->CreateUserPane(panel);
++   panel->Fit();
++   return panel;
++}
++
++int FileDialog::ShowModal()
++{
++   wxGenericFileDialog dlg(mParent, m_message, m_dir, m_fileName, m_wildCard,
++                           m_windowStyle, mPos);
++   dlg.SetFilterIndex(m_filterIndex);
++   if (HasUserPaneCreator())
++      dlg.SetExtraControlCreator(&FileDialog::MakeUserPane);
++
++   sShowing = this;
++   const int result = dlg.ShowModal();
++   sShowing = nullptr;
++
++   if (result == wxID_OK) {
++      m_path = dlg.GetPath();
++      m_dir = dlg.GetDirectory();
++      m_fileName = dlg.GetFilename();
++      m_filterIndex = dlg.GetFilterIndex();
++      mPaths.clear();
++      mNames.clear();
++      if (HasFdFlag(wxFD_MULTIPLE)) {
++         dlg.GetPaths(mPaths);
++         dlg.GetFilenames(mNames);
++      }
++   }
++   SetReturnCode(result);
++   return result;
++}
+diff -ruN a/libraries/lib-wx-wrappers/FileDialog/amiga/FileDialogPrivate.h b/libraries/lib-wx-wrappers/FileDialog/amiga/FileDialogPrivate.h
+--- a/libraries/lib-wx-wrappers/FileDialog/amiga/FileDialogPrivate.h	1970-01-01 00:00:00.000000000 +0000
++++ b/libraries/lib-wx-wrappers/FileDialog/amiga/FileDialogPrivate.h	2026-11-05 00:30:54.121043638 +0000
+@@ -0,0 +1,71 @@
++/**********************************************************************
++
++  Audacity: A Digital Audio Editor
++
++  FileDialogPrivate.h (AmigaOS, gfopenwx's openlayout port)
++
++  Audacity's FileDialog on wx's generic file dialog, which is the
++  openlayout port's own: the dialog is made when shown, with the user
++  pane as its extra control, and its answers kept for the getters.
++
++  Copyright (c) 2026 AmiCradle Team
++
++**********************************************************************/
++
++#ifndef _AMIGA_FILEDIALOGPRIVATE_H_
++#define _AMIGA_FILEDIALOGPRIVATE_H_
++
++#include <wx/arrstr.h>
++
++class WX_WRAPPERS_API FileDialog : public FileDialogBase
++{
++public:
++   FileDialog() { }
++
++   FileDialog(wxWindow *parent,
++              const wxString& message = wxFileSelectorPromptStr,
++              const wxString& defaultDir = wxEmptyString,
++              const wxString& defaultFile = wxEmptyString,
++              const wxString& wildCard = wxFileSelectorDefaultWildcardStr,
++              long style = wxFD_DEFAULT_STYLE,
++              const wxPoint& pos = wxDefaultPosition,
++              const wxSize& sz = wxDefaultSize,
++              const wxString& name = wxFileDialogNameStr);
++   bool Create(wxWindow *parent,
++               const wxString& message = wxFileSelectorPromptStr,
++               const wxString& defaultDir = wxEmptyString,
++               const wxString& defaultFile = wxEmptyString,
++               const wxString& wildCard = wxFileSelectorDefaultWildcardStr,
++               long style = wxFD_DEFAULT_STYLE,
++               const wxPoint& pos = wxDefaultPosition,
++               const wxSize& sz = wxDefaultSize,
++               const wxString& name = wxFileDialogNameStr);
++   virtual ~FileDialog();
++
++   wxString GetPath() const override;
++   void GetPaths(wxArrayString& paths) const override;
++   wxString GetFilename() const override;
++   void GetFilenames(wxArrayString& files) const override;
++   int GetFilterIndex() const override;
++
++   void SetMessage(const wxString& message) override;
++   void SetPath(const wxString& path) override;
++   void SetDirectory(const wxString& dir) override;
++   void SetFilename(const wxString& name) override;
++   void SetWildcard(const wxString& wildCard) override;
++   void SetFilterIndex(int filterIndex) override;
++
++   int ShowModal() override;
++
++   bool SupportsExtraControl() const override { return true; }
++
++private:
++   static wxWindow *MakeUserPane(wxWindow *parent);
++
++   wxWindow *mParent{};
++   wxPoint mPos{ wxDefaultPosition };
++   wxArrayString mPaths;
++   wxArrayString mNames;
++};
++
++#endif

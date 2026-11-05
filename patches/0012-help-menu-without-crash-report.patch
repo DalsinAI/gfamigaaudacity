@@ -1,0 +1,17 @@
+Help menu: the comma before Generate Support Data goes inside its #if, so
+the menu builds without wx's debug report (upstream always has one).
+
+diff -ruN a/src/menus/HelpMenus.cpp b/src/menus/HelpMenus.cpp
+--- a/src/menus/HelpMenus.cpp	2026-11-05 01:38:58.373075502 +0000
++++ b/src/menus/HelpMenus.cpp	2026-11-05 01:38:58.385311440 +0000
+@@ -441,8 +441,9 @@
+                OnAudioDeviceInfo,
+                AudioIONotBusyFlag() ),
+             Command( wxT("Log"), XXO("Show &Log..."), OnShowLog,
+-               AlwaysEnabledFlag ),
++               AlwaysEnabledFlag )
+       #if defined(HAS_CRASH_REPORT)
++            ,
+             Command( wxT("CrashReport"), XXO("&Generate Support Data..."),
+                OnCrashReport, AlwaysEnabledFlag )
+       #endif

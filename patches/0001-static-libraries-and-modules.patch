@@ -1,0 +1,84 @@
+diff -ru a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt	2026-11-04 23:44:24.092668532 +0000
++++ b/CMakeLists.txt	2026-11-04 23:44:24.110788266 +0000
+@@ -670,6 +670,18 @@
+ add_subdirectory( "locale" )
+ add_subdirectory( "src" )
+ add_subdirectory( "modules" )
++if( AMIGA )
++   # every static library and module whole, so their self-registering
++   # objects are all in the program
++   get_property( amiga_archives GLOBAL PROPERTY AMIGA_WHOLE_ARCHIVES )
++   set( amiga_link "LINKER:--whole-archive" )
++   foreach( a ${amiga_archives} )
++      list( APPEND amiga_link "$<TARGET_FILE:${a}>" )
++   endforeach()
++   list( APPEND amiga_link "LINKER:--no-whole-archive" )
++   target_link_options( Audacity PRIVATE ${amiga_link} )
++   add_dependencies( Audacity ${amiga_archives} )
++endif()
+ add_subdirectory( "nyquist" )
+ add_subdirectory( "plug-ins" )
+ 
+diff -ru a/cmake-proxies/cmake-modules/AudacityFunctions.cmake b/cmake-proxies/cmake-modules/AudacityFunctions.cmake
+--- a/cmake-proxies/cmake-modules/AudacityFunctions.cmake	2026-11-04 23:44:24.074724676 +0000
++++ b/cmake-proxies/cmake-modules/AudacityFunctions.cmake	2026-11-04 23:44:41.665673575 +0000
+@@ -482,6 +482,11 @@
+ 
+    if (LIBTYPE STREQUAL "MODULE" AND CMAKE_SYSTEM_NAME MATCHES "Windows")
+       set( REAL_LIBTYPE SHARED )
++   elseif (AMIGA)
++      # AmigaOS: no shared objects. Every library and module is a static
++      # archive, linked whole into the program (see the top CMakeLists).
++      set( REAL_LIBTYPE STATIC )
++      set_property( GLOBAL APPEND PROPERTY AMIGA_WHOLE_ARCHIVES ${TARGET} )
+    else()
+       set( REAL_LIBTYPE "${LIBTYPE}" )
+    endif()
+@@ -554,7 +559,12 @@
+    set( LIBRARIES )
+ 
+    foreach( IMPORT ${IMPORT_TARGETS} )
+-      list( APPEND LIBRARIES "${IMPORT}" )
++      if( AMIGA AND IMPORT STREQUAL "Audacity" )
++         # the module goes into the program: take only its headers
++         list( APPEND LIBRARIES "$<COMPILE_ONLY:Audacity>" )
++      else()
++         list( APPEND LIBRARIES "${IMPORT}" )
++      endif()
+    endforeach()
+ 
+    list( APPEND LIBRARIES ${ADDITIONAL_LIBRARIES} )
+@@ -575,7 +585,7 @@
+    target_link_options( ${TARGET} PRIVATE ${LOPTS} )
+    target_link_libraries( ${TARGET} PUBLIC ${LIBRARIES} )
+ 
+-   if( NOT CMAKE_SYSTEM_NAME MATCHES "Windows" )
++   if( NOT CMAKE_SYSTEM_NAME MATCHES "Windows" AND NOT AMIGA )
+       # Generate-time boolean values must be "0" or "1",
+       # not "on", "off", etc. like configure-time booleans
+       if (CMAKE_BUILD_TYPE MATCHES "Debug|RelWithDebInfo")
+diff -ru a/libraries/lib-utility/ModuleConstants.h b/libraries/lib-utility/ModuleConstants.h
+--- a/libraries/lib-utility/ModuleConstants.h	2026-11-04 23:44:24.084110631 +0000
++++ b/libraries/lib-utility/ModuleConstants.h	2026-11-04 23:44:24.110659720 +0000
+@@ -33,6 +33,12 @@
+    ProjectClosing
+ };
+ 
++#if defined(__AMIGA__)
++// AmigaOS: modules are linked into the program, so their entry points
++// would clash; they register themselves through static objects instead.
++#define DEFINE_VERSION_CHECK
++#define DEFINE_MODULE_ENTRIES
++#else
+ // Macro generates one of the required entry points of a module
+ // GetVersionString
+ // REQUIRED for the module to be accepted by Audacity.
+@@ -54,6 +60,7 @@
+ #define DEFINE_MODULE_ENTRIES                                          \
+ DEFINE_VERSION_CHECK                                                   \
+ extern "C" DLL_API int ModuleDispatch(ModuleDispatchTypes type){ return 1; }
++#endif
+ 
+ //! This program's name
+ UTILITY_API extern const std::wstring AppName;

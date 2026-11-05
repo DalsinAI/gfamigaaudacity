@@ -1,0 +1,25 @@
+# What this port builds on: fetched at build time, never shipped.
+# Git sources are pinned by commit, tarballs by sha256.
+AUD_GIT=https://github.com/audacity/audacity.git
+AUD_TAG=Audacity-3.7.9
+AUD_COMMIT=86d74c770974b25188ca2f23bcce47c1181bd08a
+LAME_VERSION=3.100
+LAME_URL=https://downloads.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz
+LAME_SHA256=ddfe36cab873794038ae2c1210557ad34857a4b6bdc515785d1da9e175b1da1e
+SNDFILE_VERSION=1.2.2
+SNDFILE_URL=https://github.com/libsndfile/libsndfile/releases/download/1.2.2/libsndfile-1.2.2.tar.xz
+SNDFILE_SHA256=3799ca9924d3125038880367bf1468e53a1b7e3686a934f098b7e1d286cdb80e
+RJ_GIT=https://github.com/Tencent/rapidjson.git
+RJ_COMMIT=24b5e7a8b27f42fa16b96fc70aade9106cf7102f
+PM_GIT=https://github.com/PortMidi/portmidi.git
+PM_COMMIT=b808babecdc5d05205467dab5c1006c5ac0fdfd4
+ST_GIT=https://codeberg.org/soundtouch/soundtouch.git
+ST_TAG=2.3.3
+ST_COMMIT=e83424d5928ab8513d2d082779c275765dee31b9
+# Our own pieces, fetched at these commits
+WXT_REPO=https://github.com/DalsinAI/gfopenwxtoolkit
+WXT_COMMIT=c4fcfd858118b7437f9dd3b545fb229e5ac45604
+# GFOpenPortAudio (PortAudio's AHI host API): until its own repository
+# exists, give PA_SRC (its tree) to build-amiga.sh
+PA_REPO=https://github.com/DalsinAI/gfopenportaudio
+PA_COMMIT=

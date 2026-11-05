@@ -1,0 +1,25 @@
+diff -ru a/libraries/lib-files/PathList.cpp b/libraries/lib-files/PathList.cpp
+--- a/libraries/lib-files/PathList.cpp	2026-11-05 00:33:57.926714047 +0000
++++ b/libraries/lib-files/PathList.cpp	2026-11-05 00:33:57.938049522 +0000
+@@ -199,5 +199,21 @@
+    //   wxGetUserId() ) );
+ #endif //__WXMAC__
+ 
++#ifdef __AMIGA__
++   // AmigaOS: the program's own drawer (PROGDIR:) holds what an install
++   // brings, and the temporary project data goes beside it, on disk (T: is
++   // usually RAM, too small for audio)
++   {
++      wxString pathVar = wxGetenv(wxT("AUDACITY_PATH"));
++      if (!pathVar.empty())
++         FileNames::AddMultiPathsToPathList(pathVar, audacityPathList);
++      FileNames::AddUniquePathToPathList(wxT("PROGDIR:"), audacityPathList);
++      FileNames::AddUniquePathToPathList(FileNames::DataDir(), audacityPathList);
++      FileNames::AddUniquePathToPathList(FileNames::ModulesDir(), audacityPathList);
++      FileNames::AddUniquePathToPathList(wxT("PROGDIR:Locale"), audacityPathList);
++      TempDirectory::SetDefaultTempDir(wxT("PROGDIR:Temp"));
++   }
++#endif //__AMIGA__
++
+    FileNames::SetAudacityPathList( std::move( audacityPathList ) );
+ }

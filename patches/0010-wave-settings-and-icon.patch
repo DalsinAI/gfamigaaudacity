@@ -1,0 +1,37 @@
+Link lib-wave-track-settings into Audacity directly (upstream only gets it
+through Nyquist, which this build leaves out); no ELF dtags flag for the
+Amiga linker; no project window icon on GFOpenLayout (Intuition windows
+have none).
+
+diff -ruN a/src/CMakeLists.txt b/src/CMakeLists.txt
+--- a/src/CMakeLists.txt	2026-11-05 01:09:21.701898413 +0000
++++ b/src/CMakeLists.txt	2026-11-05 01:18:38.603830618 +0000
+@@ -996,7 +996,7 @@
+ set( LDFLAGS
+    PRIVATE
+       $<$<CXX_COMPILER_ID:MSVC>:/MANIFEST:NO>
+-      $<$<CXX_COMPILER_ID:GNU>:-Wl,--disable-new-dtags>
++      $<$<AND:$<CXX_COMPILER_ID:GNU>,$<NOT:$<PLATFORM_ID:AmigaOS>>>:-Wl,--disable-new-dtags>
+ )
+ 
+ find_package( Threads QUIET )
+@@ -1303,6 +1303,7 @@
+    lib-export-ui-interface
+    lib-wave-track-paint-interface
+    lib-wave-track-fft-interface
++   lib-wave-track-settings-interface
+    lib-music-information-retrieval-interface
+    lib-preference-pages-interface
+    lib-audacity-application-logic-interface
+diff -ruN a/src/ProjectManager.cpp b/src/ProjectManager.cpp
+--- a/src/ProjectManager.cpp	2026-11-05 01:09:21.703047298 +0000
++++ b/src/ProjectManager.cpp	2026-11-05 01:09:21.716812461 +0000
+@@ -281,7 +281,7 @@
+    //
+ 
+    // loads either the XPM or the windows resource, depending on the platform
+-#if !defined(__WXMAC__) && !defined(__WXX11__)
++#if !defined(__WXMAC__) && !defined(__WXX11__) && !defined(__WXOPENLAYOUT__)
+    {
+ #if defined(__WXMSW__)
+       wxIcon ic{ wxICON(AudacityLogo) };
