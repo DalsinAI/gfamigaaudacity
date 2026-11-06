@@ -4,16 +4,31 @@ public port does that job).
 diff -ruN a/src/AudacityApp.cpp b/src/AudacityApp.cpp
 --- a/src/AudacityApp.cpp	2026-11-05 01:17:57.992128539 +0000
 +++ b/src/AudacityApp.cpp	2026-11-05 01:17:58.003778387 +0000
-@@ -926,6 +926,21 @@
+@@ -926,6 +926,36 @@
     return wxEntry(argc, argv);
  }
  
 +#elif defined(__AMIGA__)
 +
-+// AmigaOS: a plain main(), as on Linux
++// AmigaOS: a plain main(), as on Linux. libnix's start-up gives the
++// program the stack __stack asks for (Audacity needs about 1 MB), so a
++// double-click on its icon or a plain Shell start runs it. Started from
++// Workbench, argc is 0 and argv the WBStartup message: wx gets the
++// program's name alone.
++#include <sys/stat.h>
++extern "C" { unsigned long __stack = 1048576; }
 +
 +int main(int argc, char *argv[])
 +{
++   static char name[] = "Audacity";
++   static char *wbargv[] = { name, nullptr };
++   if (argc == 0) {
++      argc = 1;
++      argv = wbargv;
++   }
++   // the drawer for temporary files (patch 0008) must exist
++   mkdir("PROGDIR:Temp", 0777);
++
 +   CommandLineArgs::argc = argc;
 +   CommandLineArgs::argv = argv;
 +

@@ -18,7 +18,7 @@ Owed: recording (needs an AHI mode that records), MIDI, a smaller binary (about 
 STOVE=~/AmiCradle/stoves/os32-gcc16-open6 OUT=out ./build-amiga.sh
 ```
 
-The first run fetches the GFOpenWX Toolkit and GFOpenPortAudio at the commits `audacity.lock` pins, builds the toolkit SDK, PortAudio and the libraries (libsndfile, LAME, SoundTouch, PortMidi, RapidJSON), then Audacity for what is left of 840 s; run it again and it goes on from where it stopped (the build tree is kept in `~/.cache/gfamigaaudacity/build`, or `WORK`). `out/audacity` appears when it links.
+The first run fetches the GFOpenWX Toolkit and GFOpenPortAudio at the commits `audacity.lock` pins, builds the toolkit SDK, PortAudio and the libraries (libsndfile, LAME, SoundTouch, PortMidi, RapidJSON), then Audacity for what is left of 840 s; run it again and it goes on from where it stopped (the build tree is kept in `~/.cache/gfamigaaudacity/build`, or `WORK`). `out/audacity` appears when it links, next to `out/Audacity.info`, its Workbench icon. Copy both into a drawer as `Audacity` and `Audacity.info`; a double-click runs it (the program asks for its own 1 MB stack and makes its `Temp` drawer).
 
 | Where | What |
 |---|---|

@@ -19,6 +19,8 @@ OUT="${OUT:-$HERE/build/out}"; JOBS=${JOBS:-12}
 TC="$STOVE/prefix"
 command -v cmake >/dev/null || { echo "no cmake on this stove"; exit 1; }
 mkdir -p "$WORK/deps" "$OUT"
+# the Workbench tool icon (stack 1048576): a double-click runs Audacity
+python3 -I "$HERE/scripts/make-icon.py" "$OUT/Audacity.info"
 t0=$(date +%s)
 
 fetch() {
