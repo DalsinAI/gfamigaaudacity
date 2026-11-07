@@ -49,6 +49,8 @@ ADDRESS 'AUDACITY.1'
 SAY result
 ```
 
+`Rexx/Play.rexx` (in the Rexx drawer beside the program) is an example.
+
 ## Licence
 
 Audacity is GPL v2 or later; the patches and build files here are under the same licence.
