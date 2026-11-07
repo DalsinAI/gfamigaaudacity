@@ -27,6 +27,28 @@ The first run fetches the GFOpenWX Toolkit and GFOpenPortAudio at the commits `a
 | `cmake/` | the m68k-amigaos toolchain and platform files |
 | `deps/` | the small pieces libnix lacks (POSIX calls, uuid, PortMidi's Amiga host) |
 
+## ARexx
+
+Audacity has an ARexx port, `AUDACITY.1`, from the GFOpenWX Toolkit's `wxARexxPort` on arexx.class (patch 0015). `DO` takes any of Audacity's scripting commands, as mod-script-pipe and Nyquist's `aud-do` take them.
+
+| Command | Does |
+| --- | --- |
+| `OPEN FILE/A` | open a project or audio file, as a second start does |
+| `DO COMMAND/F` | one scripting command (`Select: Start=0 End=5`); RESULT: its answer; RC 10 when it failed |
+| `PLAY`, `STOP` | the Play and Stop commands |
+| `QUIT`, `ACTIVATE`, `DEACTIVATE`, `VERSION`, `HELP`, `FAULT` | the toolkit's standard commands |
+
+```
+/* Audacity: louder first five seconds, then save as WAV */
+OPTIONS RESULTS
+ADDRESS 'AUDACITY.1'
+'DO Select: Start=0 End=5'
+'DO Amplify: Ratio=1.5'
+'DO Export2: Filename="Work:Sounds/louder.wav"'
+'DO GetInfo: Type=Tracks'
+SAY result
+```
+
 ## Licence
 
 Audacity is GPL v2 or later; the patches and build files here are under the same licence.

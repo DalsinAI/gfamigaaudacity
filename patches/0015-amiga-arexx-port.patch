@@ -1,0 +1,101 @@
+AmigaOS: the ARexx port AUDACITY.1: OPEN, DO (Audacity's scripting commands), PLAY, STOP.
+
+--- a/src/AudacityApp.cpp	2026-11-07 13:58:18.724528086 +0000
++++ b/src/AudacityApp.cpp	2026-11-07 13:58:36.356622018 +0000
+@@ -812,6 +812,8 @@
+ 
+ #if defined(__AMIGA__)
+ void AmigaIPCPoll(struct MsgPort *port);
++void AmigaRexxOpen();
++void AmigaRexxClose();
+ #endif
+ 
+ //
+@@ -1802,6 +1804,9 @@
+ 
+    mTimer.SetOwner(this, kAudacityAppTimerID);
+    mTimer.Start(200);
++#if defined(__AMIGA__)
++   AmigaRexxOpen();
++#endif
+ 
+ #ifdef EXPERIMENTAL_EASY_CHANGE_KEY_BINDINGS
+    static CommandManager::GlobalMenuHook::Scope scope{
+@@ -2570,6 +2575,69 @@
+    return false;
+ }
+ 
++// AmigaOS: Audacity's ARexx port, AUDACITY.1, on the GFOpenWX Toolkit's
++// wxARexxPort and arexx.class, with the toolkit's QUIT, ACTIVATE,
++// DEACTIVATE, VERSION, HELP and FAULT:
++//   OPEN FILE/A     open a project or audio file (as a second start does)
++//   DO COMMAND/F    one of Audacity's scripting commands, as mod-script-pipe
++//                   and Nyquist's aud-do take them ("Select: Start=0
++//                   End=5"); RESULT: its answer; RC 10 when it failed
++//   PLAY, STOP      the Play and Stop scripting commands
++#include <wx/openlayout/arexx.h>
++#include "commands/ScriptCommandRelay.h"
++
++static wxARexxPort *sAmigaRexx;
++
++static void AmigaRexxDo(wxARexxCommand &c, wxString in)
++{
++   wxString out;
++   ExecFromMain(&in, &out);
++   // the answer's last line says how it went
++   const wxString done = wxT("BatchCommand finished: ");
++   int at = out.Find(done);
++   if (at == wxNOT_FOUND) {
++      c.SetError(10);
++      return;
++   }
++   wxString status = out.Mid(at + done.length());
++   wxString answer = out.Left(at);
++   answer.Trim();
++   if (!status.StartsWith(wxT("OK")))
++      c.SetError(10);
++   else
++      c.SetResult(answer);
++}
++
++void AmigaRexxOpen()
++{
++   if (sAmigaRexx)
++      return;
++   sAmigaRexx = new wxARexxPort("AUDACITY", wxString(wxT("Audacity ")) + AUDACITY_VERSION_STRING);
++   sAmigaRexx->Add("OPEN", "FILE/A", [](wxARexxCommand &c) {
++      wxFileName name(c.Str(0));
++      if (!name.FileExists() || !name.MakeAbsolute())
++         c.SetError(10, 205);   // object not found
++      else
++         ofqueue.push_back(name.GetLongPath());
++   });
++   sAmigaRexx->Add("DO", "COMMAND/F", [](wxARexxCommand &c) {
++      AmigaRexxDo(c, c.Str(0));
++   });
++   sAmigaRexx->Add("PLAY", "", [](wxARexxCommand &c) {
++      AmigaRexxDo(c, wxT("Play:"));
++   });
++   sAmigaRexx->Add("STOP", "", [](wxARexxCommand &c) {
++      AmigaRexxDo(c, wxT("Stop:"));
++   });
++   sAmigaRexx->Open();
++}
++
++void AmigaRexxClose()
++{
++   delete sAmigaRexx;
++   sAmigaRexx = nullptr;
++}
++
+ static void AmigaIPCClose(struct MsgPort *&port)
+ {
+    if (!port)
+@@ -2671,6 +2739,7 @@
+ {
+    gIsQuitting = true;
+ #if defined(__AMIGA__)
++   AmigaRexxClose();
+    AmigaIPCClose(mIPCPort);
+ #endif
+    while(Pending())
