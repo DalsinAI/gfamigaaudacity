@@ -18,7 +18,7 @@ ST_TAG=2.3.3
 ST_COMMIT=e83424d5928ab8513d2d082779c275765dee31b9
 # Our own pieces, fetched at these commits
 WXT_REPO=https://github.com/DalsinAI/gfopenwxtoolkit
-WXT_COMMIT=e75e16f8278a2c93a23d4ba0fbf2b098c59c0ec4
+WXT_COMMIT=1c4e5dd981a8d3fb7ccb417bd91dd201bd18307d
 # GFOpenPortAudio (PortAudio's AHI host API)
 PA_REPO=https://github.com/DalsinAI/gfopenportaudio
 PA_COMMIT=c30eedd83f1e6388545ef29b73984bfda4a60a64

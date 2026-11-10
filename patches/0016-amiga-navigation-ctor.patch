@@ -1,0 +1,18 @@
+AmigaOS: wxNavigationEnabled<wxWindow>'s constructor in this file
+
+With toolkit 1c4e5dd, GCC 16 at -O3 leaves RealtimeEffectPanel.o calling
+wxNavigationEnabled<wxWindow>::wxNavigationEnabled() without emitting it,
+and the link fails. An explicit instantiation here gives it a definition.
+
+--- a/src/RealtimeEffectPanel.cpp
++++ b/src/RealtimeEffectPanel.cpp
+@@ -1681,3 +1681,9 @@
+    else
+       evt.Skip();
+ }
++
++#ifdef __AMIGA__
++// the link needs this constructor defined somewhere (GCC 16 -O3, toolkit
++// 1c4e5dd); an explicit instantiation defines the class's members here
++template class wxNavigationEnabled<wxWindow>;
++#endif
