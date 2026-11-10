@@ -86,5 +86,6 @@ if [ -f "$B/Release/bin/audacity" ]; then
     "$TOOLCHAIN/bin/m68k-amigaos-strip" -o "$OUT/audacity" "$B/Release/bin/audacity" || cp "$B/Release/bin/audacity" "$OUT/audacity"
     # the ARexx example (README: ARexx)
     mkdir -p "$OUT/Rexx"; cp "$HERE"/Rexx/*.rexx "$OUT/Rexx/"
+    mkdir -p "$OUT/tests"; cp "$HERE/tests/arexx.rexx" "$OUT/tests/"   # the ARexx port test
     ls -l "$OUT/audacity"
 fi
