@@ -1,0 +1,70 @@
+Built-in effects: read each effect's name when the module initializes.
+The registrations run during static init, before Subclass::Symbol in
+lib-builtin-effects is constructed on this link, so all but a few got an
+empty name and collapsed into one entry (Amplify, Normalize... not found).
+
+diff -ru a/libraries/lib-effects/LoadEffects.cpp b/libraries/lib-effects/LoadEffects.cpp
+--- a/libraries/lib-effects/LoadEffects.cpp	2026-11-10 12:52:30.416553480 +0000
++++ b/libraries/lib-effects/LoadEffects.cpp	2026-11-11 04:03:40.233110929 +0000
+@@ -23,6 +23,7 @@
+ static bool sInitialized = false;
+ 
+ struct BuiltinEffectsModule::Entry {
++   SymbolFn nameFn;
+    ComponentInterfaceSymbol name;
+    BuiltinEffectsModule::Factory factory;
+    bool excluded;
+@@ -36,10 +37,10 @@
+ };
+ 
+ void BuiltinEffectsModule::DoRegistration(
+-   const ComponentInterfaceSymbol &name, const Factory &factory, bool excluded )
++   SymbolFn name, const Factory &factory, bool excluded )
+ {
+    wxASSERT( !sInitialized );
+-   Entry::Registry().emplace_back( Entry{ name, factory, excluded } );
++   Entry::Registry().emplace_back( Entry{ name, {}, factory, excluded } );
+ }
+ 
+ // ============================================================================
+@@ -113,7 +114,8 @@
+ 
+ bool BuiltinEffectsModule::Initialize()
+ {
+-   for ( const auto &entry : Entry::Registry() ) {
++   for ( auto &entry : Entry::Registry() ) {
++      entry.name = entry.nameFn();
+       auto path = wxString(BUILTIN_EFFECT_PREFIX) + entry.name.Internal();
+       mEffects[ path ] = &entry;
+    }
+diff -ru a/libraries/lib-effects/LoadEffects.h b/libraries/lib-effects/LoadEffects.h
+--- a/libraries/lib-effects/LoadEffects.h	2026-11-11 03:32:37.800327401 +0000
++++ b/libraries/lib-effects/LoadEffects.h	2026-11-11 04:03:40.231870307 +0000
+@@ -33,13 +33,17 @@
+    virtual ~BuiltinEffectsModule();
+ 
+    using Factory = std::function< std::unique_ptr<Effect> () >;
++   // The name is read when the module initializes: Subclass::Symbol may live in
++   // another translation unit and not be constructed yet during static init
++   using SymbolFn = ComponentInterfaceSymbol (*)();
+ 
+    // Typically you make a static object of this type in the .cpp file that
+    // also implements the Effect subclass.
+    template< typename Subclass >
+    struct Registration final { Registration( bool excluded = false ) {
+       DoRegistration(
+-         Subclass::Symbol, []{ return std::make_unique< Subclass >(); },
++         []{ return ComponentInterfaceSymbol{ Subclass::Symbol }; },
++         []{ return std::make_unique< Subclass >(); },
+          excluded );
+    } };
+ 
+@@ -79,7 +83,7 @@
+ 
+ private:
+    static void DoRegistration(
+-      const ComponentInterfaceSymbol &name, const Factory &factory,
++      SymbolFn name, const Factory &factory,
+       bool excluded );
+ 
+    struct Entry;
