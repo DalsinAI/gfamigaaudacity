@@ -36,7 +36,12 @@ Audacity has an ARexx port, `AUDACITY.1`, from the GFOpenWX Toolkit's `wxARexxPo
 | `OPEN FILE/A` | open a project or audio file, as a second start does |
 | `DO COMMAND/F` | one scripting command (`Select: Start=0 End=5`); RESULT: its answer; RC 10 when it failed |
 | `PLAY`, `STOP` | the Play and Stop commands |
-| `QUIT`, `ACTIVATE`, `DEACTIVATE`, `VERSION`, `HELP`, `FAULT` | the toolkit's standard commands |
+| `QUIT FORCE/S` | close Audacity; with unsaved changes plain `QUIT` answers RC 5 and stays open, `QUIT FORCE` closes without saving |
+| `LASTERROR` | RESULT: why the last command failed (what its requester would have said) |
+| `GETLOG LINES/N` | RESULT: the last lines of Audacity's log (default 40) |
+| `ACTIVATE`, `DEACTIVATE`, `VERSION`, `HELP`, `FAULT` | the toolkit's standard commands |
+
+No requester opens while an ARexx command runs (patch 0017): a command that would ask something or show an error answers RC 5 or 10 instead, and `LASTERROR` says why.
 
 ```
 /* Audacity: louder first five seconds, then save as WAV */

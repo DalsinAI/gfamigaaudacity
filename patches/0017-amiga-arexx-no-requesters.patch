@@ -1,0 +1,249 @@
+AmigaOS: no requester blocks an ARexx command; LASTERROR, GETLOG and QUIT FORCE.
+
+diff -ru a/libraries/lib-wx-init/AudacityMessageBox.cpp b/libraries/lib-wx-init/AudacityMessageBox.cpp
+--- a/libraries/lib-wx-init/AudacityMessageBox.cpp	2026-11-11 07:16:32.842521141 +0000
++++ b/libraries/lib-wx-init/AudacityMessageBox.cpp	2026-11-11 07:16:32.843987705 +0000
+@@ -14,10 +14,19 @@
+ #include "Journal.h"
+ #include "wxArrayStringEx.h"
+ 
++#if defined(__AMIGA__)
++std::function<int(const TranslatableString &, const TranslatableString &, long)>
++   AmigaQuietMessageBox;
++#endif
++
+ int AudacityMessageBox(const TranslatableString& message,
+    const TranslatableString& caption,
+    long style, wxWindow *parent, int x, int y)
+ {
++#if defined(__AMIGA__)
++   if (AmigaQuietMessageBox)
++      return AmigaQuietMessageBox(message, caption, style);
++#endif
+    // wxMessageBox is implemented with native message boxes and does not
+    // use the wxWidgets message machinery.  Therefore the wxEventFilter that
+    // most journal recording relies on fails us here.  So if replaying, don't
+diff -ru a/libraries/lib-wx-init/AudacityMessageBox.h b/libraries/lib-wx-init/AudacityMessageBox.h
+--- a/libraries/lib-wx-init/AudacityMessageBox.h	2026-11-11 07:16:32.842307282 +0000
++++ b/libraries/lib-wx-init/AudacityMessageBox.h	2026-11-11 07:16:32.843808278 +0000
+@@ -23,4 +23,12 @@
+    wxWindow *parent = NULL,
+    int x = wxDefaultCoord, int y = wxDefaultCoord);
+ 
++#if defined(__AMIGA__)
++#include <functional>
++// AmigaOS: while this is set (an ARexx command is running), AudacityMessageBox
++// shows nothing: the hook gets the message and gives the answer
++extern WX_INIT_API std::function<int(const TranslatableString &message,
++   const TranslatableString &caption, long style)> AmigaQuietMessageBox;
++#endif
++
+ #endif
+diff -ru a/src/AudacityApp.cpp b/src/AudacityApp.cpp
+--- a/src/AudacityApp.cpp	2026-11-11 07:16:32.842748550 +0000
++++ b/src/AudacityApp.cpp	2026-11-11 07:16:33.177443128 +0000
+@@ -87,6 +87,7 @@
+ #include "ProjectFileIO.h"
+ #include "ProjectFileManager.h"
+ #include "ProjectHistory.h"
++#include "UndoManager.h"
+ #include "ProjectManager.h"
+ #include "ProjectSettings.h"
+ #include "ProjectWindow.h"
+@@ -2583,27 +2584,137 @@
+ //                   and Nyquist's aud-do take them ("Select: Start=0
+ //                   End=5"); RESULT: its answer; RC 10 when it failed
+ //   PLAY, STOP      the Play and Stop scripting commands
++//   LASTERROR       RESULT: what the last command that failed said
++//   GETLOG LINES/N  RESULT: the end of Audacity's log (Help > Diagnostics)
++//   QUIT FORCE/S    with unsaved changes: RC 5, Audacity stays; FORCE: closes
++//                   without saving
++// No requester may block a command (ARexx-RULE.md): while one runs,
++// Audacity's message boxes and error dialogs are not shown; what they say
++// goes to LASTERROR, and the command answers RC 10.
+ #include <wx/openlayout/arexx.h>
+ #include "commands/ScriptCommandRelay.h"
+ 
+ static wxARexxPort *sAmigaRexx;
++static wxString sAmigaRexxError;
++
++class AmigaRexxQuietUI final : public BasicUI::Services {
++public:
++   AmigaRexxQuietUI(BasicUI::Services *prev, wxString &said)
++      : mPrev(prev), mSaid(said) {}
++   void DoCallAfter(const BasicUI::Action &action) override
++   { mPrev->DoCallAfter(action); }
++   void DoYield() override { mPrev->DoYield(); }
++   void DoProcessIdle() override { mPrev->DoProcessIdle(); }
++   void DoShowErrorDialog(const BasicUI::WindowPlacement &,
++      const TranslatableString &dlogTitle, const TranslatableString &message,
++      const ManualPageID &, const BasicUI::ErrorDialogOptions &) override
++   { Say(dlogTitle, message); }
++   BasicUI::MessageBoxResult DoMessageBox(const TranslatableString &message,
++      BasicUI::MessageBoxOptions options) override
++   {
++      Say(options.caption, message);
++      // the answer that changes nothing
++      if (options.cancelButton)
++         return BasicUI::MessageBoxResult::Cancel;
++      if (options.buttonStyle == BasicUI::Button::YesNo)
++         return BasicUI::MessageBoxResult::No;
++      return BasicUI::MessageBoxResult::Ok;
++   }
++   std::unique_ptr<BasicUI::ProgressDialog> DoMakeProgress(
++      const TranslatableString &title, const TranslatableString &message,
++      unsigned flags, const TranslatableString &remainingLabelText) override
++   { return mPrev->DoMakeProgress(title, message, flags, remainingLabelText); }
++   std::unique_ptr<BasicUI::GenericProgressDialog> DoMakeGenericProgress(
++      const BasicUI::WindowPlacement &placement, const TranslatableString &title,
++      const TranslatableString &message, int style) override
++   { return mPrev->DoMakeGenericProgress(placement, title, message, style); }
++   int DoMultiDialog(const TranslatableString &message,
++      const TranslatableString &title, const TranslatableStrings &,
++      const ManualPageID &, const TranslatableString &, bool) override
++   { Say(title, message); return 0; }
++   bool DoOpenInDefaultBrowser(const wxString &url) override
++   { return mPrev->DoOpenInDefaultBrowser(url); }
++   std::unique_ptr<BasicUI::WindowPlacement> DoFindFocus() override
++   { return mPrev->DoFindFocus(); }
++   void DoSetFocus(const BasicUI::WindowPlacement &focus) override
++   { mPrev->DoSetFocus(focus); }
++   bool IsUsingRtlLayout() const override { return mPrev->IsUsingRtlLayout(); }
++   bool IsUiThread() const override { return mPrev->IsUiThread(); }
++
++   void Say(const TranslatableString &title, const TranslatableString &message)
++   {
++      wxString line = title.Translation();
++      if (!line.empty())
++         line += wxT(": ");
++      line += message.Translation();
++      line.Replace(wxT("\n\n"), wxT(" "));
++      line.Replace(wxT("\n"), wxT(" "));
++      if (!mSaid.empty())
++         mSaid += wxT(" / ");
++      mSaid += line;
++   }
++
++private:
++   BasicUI::Services *mPrev;
++   wxString &mSaid;
++};
++
++// For one command: message boxes and dialogs kept, not shown
++class AmigaRexxQuiet {
++public:
++   AmigaRexxQuiet() : mUI(BasicUI::Get(), mSaid)
++   {
++      mPrev = BasicUI::Install(&mUI);
++      AmigaQuietMessageBox = [this](const TranslatableString &message,
++         const TranslatableString &caption, long style) {
++         mUI.Say(caption, message);
++         if (style & wxCANCEL)
++            return wxCANCEL;
++         if (style & wxYES_NO)
++            return wxNO;
++         return wxOK;
++      };
++   }
++   ~AmigaRexxQuiet()
++   {
++      AmigaQuietMessageBox = nullptr;
++      BasicUI::Install(mPrev);
++   }
++   const wxString &Said() const { return mSaid; }
++
++private:
++   wxString mSaid;
++   AmigaRexxQuietUI mUI;
++   BasicUI::Services *mPrev;
++};
++
++static void AmigaRexxFail(wxARexxCommand &c, long rc, const wxString &why)
++{
++   sAmigaRexxError = why;
++   c.SetError(rc);
++}
+ 
+ static void AmigaRexxDo(wxARexxCommand &c, wxString in)
+ {
+    wxString out;
++   AmigaRexxQuiet quiet;
+    ExecFromMain(&in, &out);
++   if (!quiet.Said().empty()) {
++      AmigaRexxFail(c, 10, quiet.Said());
++      return;
++   }
+    // the answer's last line says how it went
+    const wxString done = wxT("BatchCommand finished: ");
+    int at = out.Find(done);
+    if (at == wxNOT_FOUND) {
+-      c.SetError(10);
++      AmigaRexxFail(c, 10, out.Strip(wxString::both));
+       return;
+    }
+    wxString status = out.Mid(at + done.length());
+    wxString answer = out.Left(at);
+    answer.Trim();
+    if (!status.StartsWith(wxT("OK")))
+-      c.SetError(10);
++      AmigaRexxFail(c, 10, answer.empty() ? status.Strip(wxString::both) : answer);
+    else
+       c.SetResult(answer);
+ }
+@@ -2615,8 +2726,10 @@
+    sAmigaRexx = new wxARexxPort("AUDACITY", wxString(wxT("Audacity ")) + AUDACITY_VERSION_STRING);
+    sAmigaRexx->Add("OPEN", "FILE/A", [](wxARexxCommand &c) {
+       wxFileName name(c.Str(0));
+-      if (!name.FileExists() || !name.MakeAbsolute())
++      if (!name.FileExists() || !name.MakeAbsolute()) {
++         sAmigaRexxError = wxT("not found: ") + c.Str(0);
+          c.SetError(10, 205);   // object not found
++      }
+       else
+          ofqueue.push_back(name.GetLongPath());
+    });
+@@ -2629,6 +2742,44 @@
+    sAmigaRexx->Add("STOP", "", [](wxARexxCommand &c) {
+       AmigaRexxDo(c, wxT("Stop:"));
+    });
++   // QUIT on Audacity's side, so that no requester comes up: with unsaved
++   // changes a plain QUIT answers RC 5 (LASTERROR says why) and Audacity
++   // stays; QUIT FORCE closes without asking. The answer goes back first:
++   // closing the last project ends the port: they close on the next pass
++   sAmigaRexx->Add("QUIT", "FORCE/S", [](wxARexxCommand &c) {
++      if (!c.Switch(0)) {
++         for (auto pProject : AllProjects{}) {
++            if (UndoManager::Get(*pProject).UnsavedChanges()) {
++               AmigaRexxFail(c, 5, wxT("Save changes to ")
++                  + pProject->GetProjectName()
++                  + wxT("? (QUIT FORCE closes without saving)"));
++               return;
++            }
++         }
++      }
++      wxTheApp->CallAfter([] { CloseAllProjects(true); });
++   });
++   sAmigaRexx->Add("LASTERROR", "", [](wxARexxCommand &c) {
++      c.SetResult(sAmigaRexxError);
++   });
++   sAmigaRexx->Add("GETLOG", "LINES/N", [](wxARexxCommand &c) {
++      auto logger = AudacityLogger::Get();
++      if (!logger) {
++         AmigaRexxFail(c, 10, wxT("no log"));
++         return;
++      }
++      wxString log = logger->GetBuffer();
++      long lines = c.Number(0, 40);
++      size_t at = log.length();
++      for (long n = 0; n <= lines && at > 0; ) {
++         --at;
++         if (log[at] == '\n' && ++n > lines) {
++            ++at;
++            break;
++         }
++      }
++      c.SetResult(log.Mid(at));
++   });
+    sAmigaRexx->Open();
+ }
+ 
