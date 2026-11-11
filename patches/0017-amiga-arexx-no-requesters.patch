@@ -1,8 +1,8 @@
-AmigaOS: no requester blocks an ARexx command; LASTERROR and GETLOG.
+AmigaOS: no requester blocks an ARexx command; LASTERROR, GETLOG and QUIT FORCE.
 
 diff -ru a/libraries/lib-wx-init/AudacityMessageBox.cpp b/libraries/lib-wx-init/AudacityMessageBox.cpp
---- a/libraries/lib-wx-init/AudacityMessageBox.cpp	2026-11-11 03:27:25.727792935 +0000
-+++ b/libraries/lib-wx-init/AudacityMessageBox.cpp	2026-11-11 03:27:25.752303023 +0000
+--- a/libraries/lib-wx-init/AudacityMessageBox.cpp	2026-11-11 07:16:32.842521141 +0000
++++ b/libraries/lib-wx-init/AudacityMessageBox.cpp	2026-11-11 07:16:32.843987705 +0000
 @@ -14,10 +14,19 @@
  #include "Journal.h"
  #include "wxArrayStringEx.h"
@@ -24,8 +24,8 @@ diff -ru a/libraries/lib-wx-init/AudacityMessageBox.cpp b/libraries/lib-wx-init/
     // use the wxWidgets message machinery.  Therefore the wxEventFilter that
     // most journal recording relies on fails us here.  So if replaying, don't
 diff -ru a/libraries/lib-wx-init/AudacityMessageBox.h b/libraries/lib-wx-init/AudacityMessageBox.h
---- a/libraries/lib-wx-init/AudacityMessageBox.h	2026-11-11 03:27:25.726792922 +0000
-+++ b/libraries/lib-wx-init/AudacityMessageBox.h	2026-11-11 03:27:25.752085532 +0000
+--- a/libraries/lib-wx-init/AudacityMessageBox.h	2026-11-11 07:16:32.842307282 +0000
++++ b/libraries/lib-wx-init/AudacityMessageBox.h	2026-11-11 07:16:32.843808278 +0000
 @@ -23,4 +23,12 @@
     wxWindow *parent = NULL,
     int x = wxDefaultCoord, int y = wxDefaultCoord);
@@ -40,9 +40,17 @@ diff -ru a/libraries/lib-wx-init/AudacityMessageBox.h b/libraries/lib-wx-init/Au
 +
  #endif
 diff -ru a/src/AudacityApp.cpp b/src/AudacityApp.cpp
---- a/src/AudacityApp.cpp	2026-11-11 03:27:25.749793213 +0000
-+++ b/src/AudacityApp.cpp	2026-11-11 03:27:25.756707535 +0000
-@@ -2583,27 +2583,137 @@
+--- a/src/AudacityApp.cpp	2026-11-11 07:16:32.842748550 +0000
++++ b/src/AudacityApp.cpp	2026-11-11 07:16:33.177443128 +0000
+@@ -87,6 +87,7 @@
+ #include "ProjectFileIO.h"
+ #include "ProjectFileManager.h"
+ #include "ProjectHistory.h"
++#include "UndoManager.h"
+ #include "ProjectManager.h"
+ #include "ProjectSettings.h"
+ #include "ProjectWindow.h"
+@@ -2583,27 +2584,137 @@
  //                   and Nyquist's aud-do take them ("Select: Start=0
  //                   End=5"); RESULT: its answer; RC 10 when it failed
  //   PLAY, STOP      the Play and Stop scripting commands
@@ -182,7 +190,7 @@ diff -ru a/src/AudacityApp.cpp b/src/AudacityApp.cpp
     else
        c.SetResult(answer);
  }
-@@ -2615,8 +2725,10 @@
+@@ -2615,8 +2726,10 @@
     sAmigaRexx = new wxARexxPort("AUDACITY", wxString(wxT("Audacity ")) + AUDACITY_VERSION_STRING);
     sAmigaRexx->Add("OPEN", "FILE/A", [](wxARexxCommand &c) {
        wxFileName name(c.Str(0));
@@ -194,24 +202,26 @@ diff -ru a/src/AudacityApp.cpp b/src/AudacityApp.cpp
        else
           ofqueue.push_back(name.GetLongPath());
     });
-@@ -2629,6 +2741,42 @@
+@@ -2629,6 +2742,44 @@
     sAmigaRexx->Add("STOP", "", [](wxARexxCommand &c) {
        AmigaRexxDo(c, wxT("Stop:"));
     });
 +   // QUIT on Audacity's side, so that no requester comes up: with unsaved
 +   // changes a plain QUIT answers RC 5 (LASTERROR says why) and Audacity
-+   // stays; QUIT FORCE closes without asking
++   // stays; QUIT FORCE closes without asking. The answer goes back first:
++   // closing the last project ends the port: they close on the next pass
 +   sAmigaRexx->Add("QUIT", "FORCE/S", [](wxARexxCommand &c) {
-+      wxWindow *top = wxTheApp ? wxTheApp->GetTopWindow() : nullptr;
-+      if (!top) {
-+         AmigaRexxFail(c, 20, wxT("no window"));
-+         return;
++      if (!c.Switch(0)) {
++         for (auto pProject : AllProjects{}) {
++            if (UndoManager::Get(*pProject).UnsavedChanges()) {
++               AmigaRexxFail(c, 5, wxT("Save changes to ")
++                  + pProject->GetProjectName()
++                  + wxT("? (QUIT FORCE closes without saving)"));
++               return;
++            }
++         }
 +      }
-+      AmigaRexxQuiet quiet;
-+      if (!top->Close(c.Switch(0)))
-+         AmigaRexxFail(c, 5, (quiet.Said().empty()
-+            ? wxString(wxT("Audacity did not close")) : quiet.Said())
-+            + wxT(" (QUIT FORCE closes without saving)"));
++      wxTheApp->CallAfter([] { CloseAllProjects(true); });
 +   });
 +   sAmigaRexx->Add("LASTERROR", "", [](wxARexxCommand &c) {
 +      c.SetResult(sAmigaRexxError);
