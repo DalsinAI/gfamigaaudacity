@@ -4,6 +4,12 @@ Audacity 3.7.9 for AmigaOS 3 (68040, soft float), on the GFOpenWX Toolkit (wxWid
 
 Audacity and the libraries it uses are fetched at build time at the versions `audacity.lock` pins, and `patches/` is applied to them; nothing third-party is kept in this repository.
 
+## wxWidgets
+
+GFOpenWXToolkit is our AmigaOS port of wxWidgets, pinned to version 3.2.12. wxWidgets itself comes from the upstream project at build time and stays under its own licence; we link to the wxWidgets project (https://www.wxwidgets.org) and aim to stay compatible with it.
+
+Audacity links it as Dale's recorded exception to the no-LGPL rule (amicradle-teams `teams/DECISION-WXWIDGETS-EXCEPTION-20261114-1543.md`). The pin is the toolkit's `wx.lock`, and its licence text, `LICENSE-wxWindows.txt` (the wxWindows Library Licence), ships with every package that contains it.
+
 ## What works
 
 - Starts, builds every toolbar, imports WAV, draws the waveform, plays at 44100 Hz through AHI.
