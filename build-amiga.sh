@@ -65,6 +65,10 @@ if [ "$(cat "$WORK/.toolkit-objs" 2>/dev/null)" != "$WXT_COMMIT" ]; then
     rm -rf "$WORK/abuild"
     echo "$WXT_COMMIT" > "$WORK/.toolkit-objs"
 fi
+# SQLite's one big object gets a run of its own first (GF-88)
+B="$WORK/abuild" BUDGET=$left sh "$HERE/scripts/sqlite-first.sh"
+left=$(( ${BUDGET_TOTAL:-840} - ($(date +%s) - t0) ))
+[ "$left" -gt 60 ] || { echo "no time left for the rest of Audacity this run, run again"; exit 0; }
 TOOLCHAIN="$TC" WORK="$WORK" OUT="$OUT" JOBS=$JOBS WX_SDK="$WXB/out/sdk" BUDGET=$left \
     sh "$HERE/scripts/build-audacity.sh"
 echo "total: $(( $(date +%s) - t0 )) s"
