@@ -4,6 +4,10 @@ Audacity 3.7.9 for AmigaOS 3 (68040, soft float), on the GFOpenWX Toolkit (wxWid
 
 Audacity and the libraries it uses are fetched at build time at the versions `audacity.lock` pins, and `patches/` is applied to them; nothing third-party is kept in this repository.
 
+## Needs
+
+`gfopenlayout.library` 12 or later in `LIBS:`. Audacity's windows are drawn by GFOpenLayout through that library, not a copy built into the program (GFOffice Libs ships version 25). Without it Audacity says "This needs gfopenlayout.library 12 or later in LIBS:" and stops.
+
 ## What works
 
 - Starts, builds every toolbar, imports WAV, draws the waveform, plays at 44100 Hz through AHI.

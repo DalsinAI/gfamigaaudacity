@@ -16,9 +16,11 @@ PM_COMMIT=b808babecdc5d05205467dab5c1006c5ac0fdfd4
 ST_GIT=https://codeberg.org/soundtouch/soundtouch.git
 ST_TAG=2.3.3
 ST_COMMIT=e83424d5928ab8513d2d082779c275765dee31b9
-# Our own pieces, fetched at these commits
+# Our own pieces, fetched at these commits. The toolkit: GFOpenLayout UI
+# through gfopenlayout.library 12 or later (gfopenwxtoolkit PR 1, merged), no copy
+# compiled in
 WXT_REPO=https://github.com/DalsinAI/gfopenwxtoolkit
-WXT_COMMIT=1c4e5dd981a8d3fb7ccb417bd91dd201bd18307d
+WXT_COMMIT=2b2db788892b0379438ae7201821b93789610861
 # GFOpenPortAudio (PortAudio's AHI host API)
 PA_REPO=https://github.com/DalsinAI/gfopenportaudio
 PA_COMMIT=c30eedd83f1e6388545ef29b73984bfda4a60a64
